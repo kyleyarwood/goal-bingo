@@ -57,9 +57,12 @@ import com.kyleyarwood.goalbingo.R
 import com.kyleyarwood.goalbingo.data.Goal
 import com.kyleyarwood.goalbingo.data.ReminderConfig
 import com.kyleyarwood.goalbingo.data.Square
+import com.kyleyarwood.goalbingo.data.StreakCadence
+import com.kyleyarwood.goalbingo.data.StreakStatus
+import com.kyleyarwood.goalbingo.data.statusOn
 import java.time.LocalDate
 
-private enum class EditableType { Checkbox, Counter }
+private enum class EditableType { Checkbox, Counter, Streak }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,6 +106,7 @@ fun SquareDetailScreen(
                 onSave = viewModel::save,
                 onDelete = viewModel::clear,
                 onSetReminder = viewModel::setReminder,
+                onConfirmStreak = viewModel::confirmStreakToday,
             )
         }
     }
@@ -118,6 +122,7 @@ private fun SquareDetailContent(
     onSave: (Goal) -> Unit,
     onDelete: () -> Unit,
     onSetReminder: (ReminderConfig?) -> Unit,
+    onConfirmStreak: () -> Unit,
 ) {
     val goal = square.goal
     var editing by remember(square.position) { mutableStateOf(goal == null) }
@@ -144,6 +149,7 @@ private fun SquareDetailContent(
                 onEdit = { editing = true },
                 onDelete = onDelete,
                 onSetReminder = onSetReminder,
+                onConfirmStreak = onConfirmStreak,
             )
         }
     }
@@ -158,6 +164,7 @@ private fun GoalReadView(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onSetReminder: (ReminderConfig?) -> Unit,
+    onConfirmStreak: () -> Unit,
 ) {
     var editingProgress by remember { mutableStateOf(false) }
     var confirmExtra by remember { mutableStateOf(false) }
@@ -237,6 +244,7 @@ private fun GoalReadView(
                 )
             }
         }
+        is Goal.Streak -> StreakReadView(goal = goal, onConfirm = onConfirmStreak)
     }
 
     Spacer(Modifier.height(16.dp))
@@ -250,6 +258,85 @@ private fun GoalReadView(
         OutlinedButton(onClick = onEdit) { Text("Edit goal") }
         TextButton(onClick = onDelete) { Text("Delete") }
     }
+}
+
+@Composable
+private fun StreakReadView(goal: Goal.Streak, onConfirm: () -> Unit) {
+    val today = LocalDate.now()
+    val status = goal.statusOn(today)
+    val isYearly = goal.cadence == StreakCadence.YearlyOncePerWeek
+
+    when (status) {
+        StreakStatus.Achieved -> {
+            AssistChip(
+                onClick = {},
+                enabled = false,
+                label = { Text(stringResource(R.string.streak_achieved)) },
+            )
+        }
+        StreakStatus.NotStarted -> {
+            Text(
+                text = stringResource(notStartedRes(goal.cadence)),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = onConfirm) {
+                Text(stringResource(if (isYearly) R.string.streak_did_this_week else R.string.streak_keep_today))
+            }
+        }
+        is StreakStatus.Active -> {
+            Text(
+                text = stringResource(activeFormatRes(goal.cadence), status.confirmed, status.total),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.height(8.dp))
+            if (status.confirmedNow) {
+                AssistChip(
+                    onClick = {},
+                    enabled = false,
+                    label = {
+                        Text(stringResource(if (isYearly) R.string.streak_already_this_week else R.string.streak_already_today))
+                    },
+                )
+            } else {
+                Button(onClick = onConfirm) {
+                    Text(stringResource(if (isYearly) R.string.streak_did_this_week else R.string.streak_keep_today))
+                }
+            }
+        }
+        is StreakStatus.Broken -> {
+            Text(
+                text = stringResource(brokenRes(goal.cadence), status.confirmed, status.total),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+}
+
+private fun cadenceLabelRes(cadence: StreakCadence): Int = when (cadence) {
+    StreakCadence.MonthlyAllDays -> R.string.cadence_monthly
+    StreakCadence.WeeklyAllDays -> R.string.cadence_weekly
+    StreakCadence.YearlyOncePerWeek -> R.string.cadence_yearly
+}
+
+private fun notStartedRes(cadence: StreakCadence): Int = when (cadence) {
+    StreakCadence.MonthlyAllDays -> R.string.streak_monthly_not_started
+    StreakCadence.WeeklyAllDays -> R.string.streak_weekly_not_started
+    StreakCadence.YearlyOncePerWeek -> R.string.streak_yearly_not_started
+}
+
+private fun activeFormatRes(cadence: StreakCadence): Int = when (cadence) {
+    StreakCadence.MonthlyAllDays -> R.string.streak_monthly_day_format
+    StreakCadence.WeeklyAllDays -> R.string.streak_weekly_day_format
+    StreakCadence.YearlyOncePerWeek -> R.string.streak_yearly_week_format
+}
+
+private fun brokenRes(cadence: StreakCadence): Int = when (cadence) {
+    StreakCadence.MonthlyAllDays -> R.string.streak_monthly_broken
+    StreakCadence.WeeklyAllDays -> R.string.streak_weekly_broken
+    StreakCadence.YearlyOncePerWeek -> R.string.streak_yearly_broken
 }
 
 @Composable
@@ -300,12 +387,16 @@ private fun GoalEditor(
         mutableStateOf(
             when (initial) {
                 is Goal.Counter -> EditableType.Counter
+                is Goal.Streak -> EditableType.Streak
                 else -> EditableType.Checkbox
             },
         )
     }
     var targetText by remember(initial) {
         mutableStateOf(((initial as? Goal.Counter)?.target ?: 1).toString())
+    }
+    var cadence by remember(initial) {
+        mutableStateOf((initial as? Goal.Streak)?.cadence ?: StreakCadence.MonthlyAllDays)
     }
 
     OutlinedTextField(
@@ -328,6 +419,11 @@ private fun GoalEditor(
             onClick = { type = EditableType.Counter },
             label = { Text(stringResource(R.string.goal_type_counter)) },
         )
+        FilterChip(
+            selected = type == EditableType.Streak,
+            onClick = { type = EditableType.Streak },
+            label = { Text(stringResource(R.string.goal_type_streak)) },
+        )
     }
 
     if (type == EditableType.Counter) {
@@ -341,13 +437,29 @@ private fun GoalEditor(
         )
     }
 
+    if (type == EditableType.Streak) {
+        Text(
+            stringResource(R.string.cadence_label),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            StreakCadence.entries.forEach { c ->
+                FilterChip(
+                    selected = cadence == c,
+                    onClick = { cadence = c },
+                    label = { Text(stringResource(cadenceLabelRes(c))) },
+                )
+            }
+        }
+    }
+
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         if (onCancel != null) {
             OutlinedButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
         }
         Button(
             enabled = title.isNotBlank() &&
-                (type == EditableType.Checkbox || (targetText.toIntOrNull() ?: 0) > 0),
+                (type != EditableType.Counter || (targetText.toIntOrNull() ?: 0) > 0),
             onClick = {
                 val saved: Goal = when (type) {
                     EditableType.Checkbox -> Goal.Checkbox(
@@ -361,6 +473,13 @@ private fun GoalEditor(
                         progress = (initial as? Goal.Counter)?.progress ?: 0,
                         reminder = initial?.reminder,
                         lastIncrementedDate = (initial as? Goal.Counter)?.lastIncrementedDate,
+                    )
+                    EditableType.Streak -> Goal.Streak(
+                        title = title.trim(),
+                        cadence = cadence,
+                        achieved = (initial as? Goal.Streak)?.achieved ?: false,
+                        confirmedDates = (initial as? Goal.Streak)?.confirmedDates ?: emptySet(),
+                        reminder = initial?.reminder,
                     )
                 }
                 onSave(saved)

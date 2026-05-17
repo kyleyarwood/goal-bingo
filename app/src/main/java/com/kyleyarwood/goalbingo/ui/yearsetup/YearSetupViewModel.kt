@@ -18,9 +18,10 @@ import kotlinx.coroutines.launch
 /**
  * In-memory representation of one editable row in the setup screen.
  *
- * Blank target → checkbox goal; numeric target → counter goal.
- * [originalProgress] / [originalDone] travel with the row so progress is preserved
- * when the user shuffles or edits an existing card.
+ * Newly-created rows: blank target → checkbox; numeric target → counter.
+ * Streak goals can't be created from this screen (use the per-goal editor),
+ * but if a row was loaded as a Streak [originalStreak] preserves it through
+ * shuffles and title edits.
  */
 data class GoalRow(
     val title: String = "",
@@ -29,10 +30,16 @@ data class GoalRow(
     val originalDone: Boolean? = null,
     val originalReminder: ReminderConfig? = null,
     val originalLastIncrementedDate: LocalDate? = null,
+    val originalStreak: Goal.Streak? = null,
 ) {
+    val isStreak: Boolean get() = originalStreak != null
+
     fun toGoal(): Goal? {
         val trimmed = title.trim()
         if (trimmed.isEmpty()) return null
+        if (originalStreak != null) {
+            return originalStreak.copy(title = trimmed)
+        }
         val targetInt = target.toIntOrNull()
         return if (targetInt != null && targetInt > 0) {
             Goal.Counter(
@@ -80,6 +87,11 @@ class YearSetupViewModel(
                         originalProgress = g.progress,
                         originalReminder = g.reminder,
                         originalLastIncrementedDate = g.lastIncrementedDate,
+                    )
+                    is Goal.Streak -> GoalRow(
+                        title = g.title,
+                        originalReminder = g.reminder,
+                        originalStreak = g,
                     )
                 }
             }

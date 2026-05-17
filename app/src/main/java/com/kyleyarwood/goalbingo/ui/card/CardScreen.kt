@@ -47,7 +47,12 @@ import com.kyleyarwood.goalbingo.R
 import com.kyleyarwood.goalbingo.data.BingoCard
 import com.kyleyarwood.goalbingo.data.Goal
 import com.kyleyarwood.goalbingo.data.Square
+import com.kyleyarwood.goalbingo.data.StreakCadence
+import com.kyleyarwood.goalbingo.data.StreakStatus
 import com.kyleyarwood.goalbingo.data.ThemeMode
+import com.kyleyarwood.goalbingo.data.statusOn
+import java.time.LocalDate
+import java.time.temporal.WeekFields
 import com.kyleyarwood.goalbingo.ui.theme.BingoOrangeDark
 import com.kyleyarwood.goalbingo.ui.theme.BingoOrangeLight
 import com.kyleyarwood.goalbingo.ui.theme.CompletedGreenDark
@@ -217,20 +222,50 @@ private fun SquareCell(
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (goal is Goal.Counter) {
-                    Text(
-                        text = stringResource(R.string.progress_format, goal.progress, goal.target),
-                        color = contentColor,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                    LinearProgressIndicator(
-                        progress = { (goal.progress.toFloat() / goal.target).coerceIn(0f, 1f) },
-                        color = scheme.primary,
-                        trackColor = Color.Transparent,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                when (goal) {
+                    is Goal.Counter -> {
+                        Text(
+                            text = stringResource(R.string.progress_format, goal.progress, goal.target),
+                            color = contentColor,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                        LinearProgressIndicator(
+                            progress = { (goal.progress.toFloat() / goal.target).coerceIn(0f, 1f) },
+                            color = scheme.primary,
+                            trackColor = Color.Transparent,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    is Goal.Streak -> {
+                        val today = java.time.LocalDate.now()
+                        val status = goal.statusOn(today)
+                        val cardFormat = when (goal.cadence) {
+                            StreakCadence.MonthlyAllDays -> R.string.streak_monthly_card
+                            StreakCadence.WeeklyAllDays -> R.string.streak_weekly_card
+                            StreakCadence.YearlyOncePerWeek -> R.string.streak_yearly_card
+                        }
+                        val label = when (status) {
+                            StreakStatus.Achieved -> stringResource(R.string.streak_achieved)
+                            StreakStatus.NotStarted -> stringResource(cardFormat, 0, totalUnitsFor(goal.cadence, today))
+                            is StreakStatus.Active -> stringResource(cardFormat, status.confirmed, status.total)
+                            is StreakStatus.Broken -> stringResource(cardFormat, status.confirmed, status.total)
+                        }
+                        Text(
+                            text = label,
+                            color = contentColor,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                    is Goal.Checkbox -> Unit
                 }
             }
         }
     }
+}
+
+private fun totalUnitsFor(cadence: StreakCadence, today: LocalDate): Int = when (cadence) {
+    StreakCadence.MonthlyAllDays -> today.lengthOfMonth()
+    StreakCadence.WeeklyAllDays -> 7
+    StreakCadence.YearlyOncePerWeek ->
+        today.range(WeekFields.ISO.weekOfWeekBasedYear()).maximum.toInt()
 }

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -154,6 +155,14 @@ private fun GoalRowEditor(
             singleLine = true,
             modifier = Modifier.weight(1f),
         )
+        if (row.isStreak) {
+            AssistChip(
+                onClick = {},
+                enabled = false,
+                label = { Text(stringResource(R.string.goal_type_streak)) },
+            )
+            return@Row
+        }
         OutlinedTextField(
             value = row.target,
             onValueChange = onTargetChange,

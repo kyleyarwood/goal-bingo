@@ -7,9 +7,11 @@ import com.kyleyarwood.goalbingo.data.BingoRepository
 import com.kyleyarwood.goalbingo.data.Goal
 import com.kyleyarwood.goalbingo.data.ReminderConfig
 import com.kyleyarwood.goalbingo.data.Square
+import com.kyleyarwood.goalbingo.data.confirmedOn
 import com.kyleyarwood.goalbingo.data.toggled
 import com.kyleyarwood.goalbingo.data.withProgressDelta
 import com.kyleyarwood.goalbingo.data.withReminder
+import java.time.LocalDate
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -79,6 +81,14 @@ class SquareDetailViewModel(
         val goal = current.goal ?: return
         viewModelScope.launch {
             repository.upsertSquare(year, current.copy(goal = goal.withReminder(reminder)))
+        }
+    }
+
+    fun confirmStreakToday() {
+        val current = square.value ?: return
+        val goal = current.goal as? Goal.Streak ?: return
+        viewModelScope.launch {
+            repository.upsertSquare(year, current.copy(goal = goal.confirmedOn(LocalDate.now())))
         }
     }
 

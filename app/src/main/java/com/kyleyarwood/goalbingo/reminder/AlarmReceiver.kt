@@ -51,6 +51,7 @@ class AlarmReceiver : BroadcastReceiver() {
             is Goal.Checkbox -> context.getString(
                 if (goal.done) R.string.notification_body_done else R.string.notification_body_not_done,
             )
+            is Goal.Streak -> context.getString(R.string.notification_body_streak)
         }
 
         val builder = NotificationCompat.Builder(context, Notifications.CHANNEL_ID)
@@ -62,7 +63,11 @@ class AlarmReceiver : BroadcastReceiver() {
 
         // Always offer the action — the in-app +1 will surface a confirmation
         // dialog if the user already tapped +1 from a previous notification today.
+        // Streak goals deliberately have no action button: confirming a streak
+        // is a deliberate "Kept it today" tap in the app, not a one-tap from a
+        // notification we can't be sure the user actually read.
         when (goal) {
+            is Goal.Streak -> Unit
             is Goal.Counter -> builder.addAction(
                 0,
                 context.getString(R.string.add_one),

@@ -16,6 +16,7 @@
     <string name="goal_type_label">Type</string>
     <string name="goal_type_checkbox">Checkbox</string>
     <string name="goal_type_counter">Counter</string>
+    <string name="goal_type_streak">Streak</string>
     <string name="progress_format">%1$d / %2$d</string>
     <string name="bingo">BINGO!</string>
     <string name="set_progress">Set progress</string>
@@ -33,10 +34,36 @@
     <string name="open_settings">Open settings</string>
     <string name="notification_body_not_done">Tap to mark done</string>
     <string name="notification_body_done">Already done today</string>
+    <string name="notification_body_streak">Did you keep your streak today?</string>
     <string name="counted_today">+1\'d from reminder today</string>
     <string name="confirm_extra_count_title">Add another for today?</string>
     <string name="confirm_extra_count_message">You already +1\'d this from the reminder earlier today. Add another anyway in case you missed a previous day?</string>
     <string name="add_anyway">Add anyway</string>
+    <string name="streak_achieved">Achieved!</string>
+    <string name="streak_keep_today">Kept it today!</string>
+    <string name="streak_already_today">✓ Confirmed today</string>
+    <string name="streak_did_this_week">Did it this week!</string>
+    <string name="streak_already_this_week">✓ Done this week</string>
+
+    <string name="streak_monthly_not_started">Not started this month</string>
+    <string name="streak_monthly_day_format">Day %1$d of %2$d this month</string>
+    <string name="streak_monthly_broken">Streak broken (%1$d of %2$d days this month)</string>
+    <string name="streak_monthly_card">%1$d / %2$d this month</string>
+
+    <string name="streak_weekly_not_started">Not started this week</string>
+    <string name="streak_weekly_day_format">Day %1$d of %2$d this week</string>
+    <string name="streak_weekly_broken">Streak broken (%1$d of %2$d days this week)</string>
+    <string name="streak_weekly_card">%1$d / %2$d this week</string>
+
+    <string name="streak_yearly_not_started">Not started this year</string>
+    <string name="streak_yearly_week_format">Week %1$d of %2$d this year</string>
+    <string name="streak_yearly_broken">Streak broken (%1$d of %2$d weeks this year)</string>
+    <string name="streak_yearly_card">%1$d / %2$d weeks this year</string>
+
+    <string name="cadence_label">Cadence</string>
+    <string name="cadence_monthly">Every day for a month</string>
+    <string name="cadence_weekly">Every day for a week</string>
+    <string name="cadence_yearly">Once a week for the year</string>
     <string name="theme">Theme</string>
     <string name="theme_system">System default</string>
     <string name="theme_light">Light</string>
