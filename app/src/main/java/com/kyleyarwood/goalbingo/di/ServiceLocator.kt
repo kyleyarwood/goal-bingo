@@ -25,7 +25,9 @@ class ServiceLocator(context: Context) {
         appContext,
         BingoDatabase::class.java,
         BingoDatabase.NAME,
-    ).build()
+    )
+        .fallbackToDestructiveMigration()
+        .build()
 
     val repository: BingoRepository = LocalBingoRepository(database.squareDao())
 

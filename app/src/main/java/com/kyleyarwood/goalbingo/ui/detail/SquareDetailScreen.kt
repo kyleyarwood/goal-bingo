@@ -134,9 +134,6 @@ private fun GoalReadView(
     onDelete: () -> Unit,
 ) {
     Text(goal.title, style = MaterialTheme.typography.titleLarge)
-    if (goal.description.isNotBlank()) {
-        Text(goal.description, style = MaterialTheme.typography.bodyLarge)
-    }
     Spacer(Modifier.height(8.dp))
 
     when (goal) {
@@ -175,7 +172,6 @@ private fun GoalEditor(
     onCancel: (() -> Unit)?,
 ) {
     var title by remember(initial) { mutableStateOf(initial?.title.orEmpty()) }
-    var description by remember(initial) { mutableStateOf(initial?.description.orEmpty()) }
     var type by remember(initial) {
         mutableStateOf(
             when (initial) {
@@ -193,12 +189,6 @@ private fun GoalEditor(
         onValueChange = { title = it },
         label = { Text(stringResource(R.string.title_label)) },
         singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    OutlinedTextField(
-        value = description,
-        onValueChange = { description = it },
-        label = { Text(stringResource(R.string.description_label)) },
         modifier = Modifier.fillMaxWidth(),
     )
 
@@ -238,12 +228,10 @@ private fun GoalEditor(
                 val saved: Goal = when (type) {
                     EditableType.Checkbox -> Goal.Checkbox(
                         title = title.trim(),
-                        description = description.trim(),
                         done = (initial as? Goal.Checkbox)?.done ?: false,
                     )
                     EditableType.Counter -> Goal.Counter(
                         title = title.trim(),
-                        description = description.trim(),
                         target = targetText.toInt().coerceAtLeast(1),
                         progress = (initial as? Goal.Counter)?.progress ?: 0,
                     )

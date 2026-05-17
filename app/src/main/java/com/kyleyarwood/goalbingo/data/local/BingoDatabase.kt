@@ -4,7 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-@Database(entities = [SquareEntity::class], version = 1, exportSchema = false)
+@Database(entities = [SquareEntity::class], version = 2, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class BingoDatabase : RoomDatabase() {
     abstract fun squareDao(): SquareDao

@@ -2,12 +2,10 @@ package com.kyleyarwood.goalbingo.data
 
 sealed interface Goal {
     val title: String
-    val description: String
     val isComplete: Boolean
 
     data class Checkbox(
         override val title: String,
-        override val description: String = "",
         val done: Boolean = false,
     ) : Goal {
         override val isComplete: Boolean get() = done
@@ -15,7 +13,6 @@ sealed interface Goal {
 
     data class Counter(
         override val title: String,
-        override val description: String = "",
         val target: Int,
         val progress: Int = 0,
     ) : Goal {

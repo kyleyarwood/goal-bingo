@@ -1,6 +1,9 @@
 package com.kyleyarwood.goalbingo.ui.nav
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -12,12 +15,13 @@ import com.kyleyarwood.goalbingo.ui.card.CardScreen
 import com.kyleyarwood.goalbingo.ui.card.CardViewModel
 import com.kyleyarwood.goalbingo.ui.detail.SquareDetailScreen
 import com.kyleyarwood.goalbingo.ui.detail.SquareDetailViewModel
-import com.kyleyarwood.goalbingo.ui.setup.SetupScreen
-import com.kyleyarwood.goalbingo.ui.setup.SetupViewModel
+import com.kyleyarwood.goalbingo.ui.yearsetup.YearSetupScreen
+import com.kyleyarwood.goalbingo.ui.yearsetup.YearSetupViewModel
+import kotlinx.coroutines.flow.first
 
 private object Route {
     const val CARD = "card"
-    const val SETUP = "setup"
+    const val YEAR_SETUP = "year_setup"
     const val SQUARE = "square/{position}"
     fun square(position: Int) = "square/$position"
 }
@@ -30,22 +34,35 @@ fun BingoNavHost(
     onSelectThemeMode: (ThemeMode) -> Unit,
 ) {
     val navController = rememberNavController()
+    // One-shot: on first launch this composition, jump to year setup if the year is empty.
+    val initialRouteChecked = remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!initialRouteChecked.value) {
+            initialRouteChecked.value = true
+            val card = repository.observeCard(year).first()
+            if (card.squares.all { it.goal == null }) {
+                navController.navigate(Route.YEAR_SETUP)
+            }
+        }
+    }
 
     NavHost(navController = navController, startDestination = Route.CARD) {
         composable(Route.CARD) {
             CardScreen(
                 factory = CardViewModel.Factory(repository, year),
                 onSquareClick = { navController.navigate(Route.square(it)) },
-                onEditCardClick = { navController.navigate(Route.SETUP) },
+                onEditCardClick = { navController.navigate(Route.YEAR_SETUP) },
                 themeMode = themeMode,
                 onSelectThemeMode = onSelectThemeMode,
             )
         }
-        composable(Route.SETUP) {
-            SetupScreen(
-                factory = SetupViewModel.Factory(repository, year),
+        composable(Route.YEAR_SETUP) {
+            YearSetupScreen(
+                factory = YearSetupViewModel.Factory(repository, year),
                 onBack = { navController.popBackStack() },
-                onSquareClick = { navController.navigate(Route.square(it)) },
+                onSaved = {
+                    navController.popBackStack(Route.CARD, inclusive = false)
+                },
             )
         }
         composable(
