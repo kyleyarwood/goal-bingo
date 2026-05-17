@@ -36,6 +36,15 @@ class SquareDetailViewModel(
         }
     }
 
+    fun setProgress(value: Int) {
+        val current = square.value ?: return
+        val goal = current.goal as? Goal.Counter ?: return
+        val clamped = value.coerceIn(0, goal.target)
+        viewModelScope.launch {
+            repository.upsertSquare(year, current.copy(goal = goal.copy(progress = clamped)))
+        }
+    }
+
     fun toggleDone() {
         val current = square.value ?: return
         val goal = current.goal ?: return

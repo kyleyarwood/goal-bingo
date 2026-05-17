@@ -1,5 +1,6 @@
 package com.kyleyarwood.goalbingo.ui.detail
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -80,6 +82,7 @@ fun SquareDetailScreen(
                     .fillMaxSize()
                     .padding(16.dp),
                 onIncrement = viewModel::increment,
+                onSetProgress = viewModel::setProgress,
                 onToggle = viewModel::toggleDone,
                 onSave = viewModel::save,
                 onDelete = viewModel::clear,
@@ -93,6 +96,7 @@ private fun SquareDetailContent(
     square: Square,
     modifier: Modifier,
     onIncrement: (Int) -> Unit,
+    onSetProgress: (Int) -> Unit,
     onToggle: () -> Unit,
     onSave: (Goal) -> Unit,
     onDelete: () -> Unit,
@@ -117,6 +121,7 @@ private fun SquareDetailContent(
             GoalReadView(
                 goal = goal,
                 onIncrement = onIncrement,
+                onSetProgress = onSetProgress,
                 onToggle = onToggle,
                 onEdit = { editing = true },
                 onDelete = onDelete,
@@ -129,22 +134,39 @@ private fun SquareDetailContent(
 private fun GoalReadView(
     goal: Goal,
     onIncrement: (Int) -> Unit,
+    onSetProgress: (Int) -> Unit,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    var editingProgress by remember { mutableStateOf(false) }
+
     Text(goal.title, style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(8.dp))
 
     when (goal) {
         is Goal.Counter -> {
             Text(
-                stringResource(R.string.progress_format, goal.progress, goal.target),
+                text = stringResource(R.string.progress_format, goal.progress, goal.target),
                 style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { editingProgress = true },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = { onIncrement(-1) }) { Text(stringResource(R.string.minus_one)) }
                 Button(onClick = { onIncrement(1) }) { Text(stringResource(R.string.add_one)) }
+            }
+
+            if (editingProgress) {
+                SetProgressDialog(
+                    current = goal.progress,
+                    target = goal.target,
+                    onConfirm = {
+                        onSetProgress(it)
+                        editingProgress = false
+                    },
+                    onDismiss = { editingProgress = false },
+                )
             }
         }
         is Goal.Checkbox -> {
@@ -163,6 +185,43 @@ private fun GoalReadView(
         OutlinedButton(onClick = onEdit) { Text("Edit goal") }
         TextButton(onClick = onDelete) { Text("Delete") }
     }
+}
+
+@Composable
+private fun SetProgressDialog(
+    current: Int,
+    target: Int,
+    onConfirm: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(current.toString()) }
+    val parsed = text.toIntOrNull()
+    val valid = parsed != null && parsed in 0..target
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.set_progress)) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it.filter(Char::isDigit).take(6) },
+                label = { Text(stringResource(R.string.progress_label, target)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                isError = !valid,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                enabled = valid,
+                onClick = { onConfirm(parsed!!) },
+            ) { Text(stringResource(R.string.save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+    )
 }
 
 @Composable
