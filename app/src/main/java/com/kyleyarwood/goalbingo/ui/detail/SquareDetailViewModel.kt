@@ -5,9 +5,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.kyleyarwood.goalbingo.data.BingoRepository
 import com.kyleyarwood.goalbingo.data.Goal
+import com.kyleyarwood.goalbingo.data.ReminderConfig
 import com.kyleyarwood.goalbingo.data.Square
 import com.kyleyarwood.goalbingo.data.toggled
 import com.kyleyarwood.goalbingo.data.withProgressDelta
+import com.kyleyarwood.goalbingo.data.withReminder
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -31,6 +33,9 @@ class SquareDetailViewModel(
     fun increment(delta: Int) {
         val current = square.value ?: return
         val goal = current.goal ?: return
+        // In-app +1 does NOT stamp lastIncrementedDate — that field tracks
+        // notification-driven increments only, so the confirmation dialog can
+        // tell "you already +1'd from the reminder" apart from a normal tap.
         viewModelScope.launch {
             repository.upsertSquare(year, current.copy(goal = goal.withProgressDelta(delta)))
         }
@@ -39,7 +44,9 @@ class SquareDetailViewModel(
     fun setProgress(value: Int) {
         val current = square.value ?: return
         val goal = current.goal as? Goal.Counter ?: return
-        val clamped = value.coerceIn(0, goal.target)
+        // Allow exceeding target — over-target is still "complete" but the
+        // overflow is meaningful (e.g. ran 12 sub-2hr halves vs a target of 1).
+        val clamped = value.coerceAtLeast(0)
         viewModelScope.launch {
             repository.upsertSquare(year, current.copy(goal = goal.copy(progress = clamped)))
         }
@@ -64,6 +71,14 @@ class SquareDetailViewModel(
         val current = square.value ?: return
         viewModelScope.launch {
             repository.upsertSquare(year, current.copy(goal = null))
+        }
+    }
+
+    fun setReminder(reminder: ReminderConfig?) {
+        val current = square.value ?: return
+        val goal = current.goal ?: return
+        viewModelScope.launch {
+            repository.upsertSquare(year, current.copy(goal = goal.withReminder(reminder)))
         }
     }
 

@@ -1,5 +1,13 @@
 package com.kyleyarwood.goalbingo.ui.detail
 
+import android.Manifest
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,7 +35,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,14 +45,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kyleyarwood.goalbingo.R
 import com.kyleyarwood.goalbingo.data.Goal
+import com.kyleyarwood.goalbingo.data.ReminderConfig
 import com.kyleyarwood.goalbingo.data.Square
+import java.time.LocalDate
 
 private enum class EditableType { Checkbox, Counter }
 
@@ -86,6 +102,7 @@ fun SquareDetailScreen(
                 onToggle = viewModel::toggleDone,
                 onSave = viewModel::save,
                 onDelete = viewModel::clear,
+                onSetReminder = viewModel::setReminder,
             )
         }
     }
@@ -100,6 +117,7 @@ private fun SquareDetailContent(
     onToggle: () -> Unit,
     onSave: (Goal) -> Unit,
     onDelete: () -> Unit,
+    onSetReminder: (ReminderConfig?) -> Unit,
 ) {
     val goal = square.goal
     var editing by remember(square.position) { mutableStateOf(goal == null) }
@@ -125,6 +143,7 @@ private fun SquareDetailContent(
                 onToggle = onToggle,
                 onEdit = { editing = true },
                 onDelete = onDelete,
+                onSetReminder = onSetReminder,
             )
         }
     }
@@ -138,23 +157,45 @@ private fun GoalReadView(
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onSetReminder: (ReminderConfig?) -> Unit,
 ) {
     var editingProgress by remember { mutableStateOf(false) }
+    var confirmExtra by remember { mutableStateOf(false) }
+    val today = LocalDate.now()
 
     Text(goal.title, style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(8.dp))
 
     when (goal) {
         is Goal.Counter -> {
-            Text(
-                text = stringResource(R.string.progress_format, goal.progress, goal.target),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { editingProgress = true },
-            )
+            val countedToday = goal.wasIncrementedOn(today)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.progress_format, goal.progress, goal.target),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { editingProgress = true },
+                )
+                if (countedToday) {
+                    AssistChip(
+                        onClick = {},
+                        enabled = false,
+                        label = { Text(stringResource(R.string.counted_today)) },
+                    )
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = { onIncrement(-1) }) { Text(stringResource(R.string.minus_one)) }
-                Button(onClick = { onIncrement(1) }) { Text(stringResource(R.string.add_one)) }
+                Button(onClick = {
+                    if (goal.reminder != null && countedToday) {
+                        confirmExtra = true
+                    } else {
+                        onIncrement(1)
+                    }
+                }) { Text(stringResource(R.string.add_one)) }
             }
 
             if (editingProgress) {
@@ -168,6 +209,24 @@ private fun GoalReadView(
                     onDismiss = { editingProgress = false },
                 )
             }
+            if (confirmExtra) {
+                AlertDialog(
+                    onDismissRequest = { confirmExtra = false },
+                    title = { Text(stringResource(R.string.confirm_extra_count_title)) },
+                    text = { Text(stringResource(R.string.confirm_extra_count_message)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            onIncrement(1)
+                            confirmExtra = false
+                        }) { Text(stringResource(R.string.add_anyway)) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmExtra = false }) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    },
+                )
+            }
         }
         is Goal.Checkbox -> {
             Button(onClick = onToggle) {
@@ -179,6 +238,12 @@ private fun GoalReadView(
             }
         }
     }
+
+    Spacer(Modifier.height(16.dp))
+    ReminderSection(
+        reminder = goal.reminder,
+        onChange = onSetReminder,
+    )
 
     Spacer(Modifier.height(16.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -196,7 +261,7 @@ private fun SetProgressDialog(
 ) {
     var text by remember { mutableStateOf(current.toString()) }
     val parsed = text.toIntOrNull()
-    val valid = parsed != null && parsed in 0..target
+    val valid = parsed != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -288,15 +353,153 @@ private fun GoalEditor(
                     EditableType.Checkbox -> Goal.Checkbox(
                         title = title.trim(),
                         done = (initial as? Goal.Checkbox)?.done ?: false,
+                        reminder = initial?.reminder,
                     )
                     EditableType.Counter -> Goal.Counter(
                         title = title.trim(),
                         target = targetText.toInt().coerceAtLeast(1),
                         progress = (initial as? Goal.Counter)?.progress ?: 0,
+                        reminder = initial?.reminder,
+                        lastIncrementedDate = (initial as? Goal.Counter)?.lastIncrementedDate,
                     )
                 }
                 onSave(saved)
             },
         ) { Text(stringResource(R.string.save)) }
     }
+}
+
+@Composable
+private fun ReminderSection(
+    reminder: ReminderConfig?,
+    onChange: (ReminderConfig?) -> Unit,
+) {
+    val context = LocalContext.current
+    var pickerOpen by remember { mutableStateOf(false) }
+    var pendingRequest by remember { mutableStateOf(false) }
+
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { /* Outcome is reflected by hasNotificationPermission(context) below. */ }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.reminder_label), style = MaterialTheme.typography.titleLarge)
+
+        if (reminder == null) {
+            OutlinedButton(onClick = { pickerOpen = true }) {
+                Text(stringResource(R.string.reminder_set))
+            }
+        } else {
+            Text(
+                text = stringResource(R.string.reminder_time_format, reminder.hour, reminder.minute),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = { pickerOpen = true }) {
+                    Text(stringResource(R.string.reminder_change))
+                }
+                TextButton(onClick = { onChange(null) }) {
+                    Text(stringResource(R.string.reminder_remove))
+                }
+            }
+        }
+
+        // Surface a warning + jump-to-settings if the OS won't actually deliver these.
+        if (reminder != null) {
+            if (!hasNotificationPermission(context)) {
+                PermissionWarning(
+                    message = stringResource(R.string.notification_permission_needed),
+                    actionLabel = stringResource(R.string.open_settings),
+                    onAction = { openAppNotificationSettings(context) },
+                )
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !canScheduleExactAlarms(context)) {
+                PermissionWarning(
+                    message = stringResource(R.string.exact_alarm_permission_needed),
+                    actionLabel = stringResource(R.string.open_settings),
+                    onAction = { openExactAlarmSettings(context) },
+                )
+            }
+        }
+    }
+
+    if (pickerOpen) {
+        TimePickerDialog(
+            initialHour = reminder?.hour ?: 9,
+            initialMinute = reminder?.minute ?: 0,
+            onConfirm = { hour, minute ->
+                onChange(ReminderConfig(hour = hour, minute = minute))
+                pickerOpen = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    !hasNotificationPermission(context) && !pendingRequest
+                ) {
+                    pendingRequest = true
+                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
+            onDismiss = { pickerOpen = false },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimePickerDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onConfirm: (hour: Int, minute: Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val state = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = true,
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onConfirm(state.hour, state.minute) }) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+        text = { TimePicker(state = state) },
+    )
+}
+
+@Composable
+private fun PermissionWarning(message: String, actionLabel: String, onAction: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(message, color = MaterialTheme.colorScheme.error)
+        AssistChip(onClick = onAction, label = { Text(actionLabel) })
+    }
+}
+
+private fun hasNotificationPermission(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+    return ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED
+}
+
+private fun canScheduleExactAlarms(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+    val am = context.getSystemService(AlarmManager::class.java) ?: return false
+    return am.canScheduleExactAlarms()
+}
+
+private fun openAppNotificationSettings(context: Context) {
+    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    context.startActivity(intent)
+}
+
+private fun openExactAlarmSettings(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+        .setData("package:${context.packageName}".toUri())
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    context.startActivity(intent)
 }

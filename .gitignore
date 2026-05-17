@@ -35,3 +35,13 @@ google-services.json
 
 # Claude
 .claude/
+
+# Personal goal data — never commit user data
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+goal-bingo*.json
+seed*.json

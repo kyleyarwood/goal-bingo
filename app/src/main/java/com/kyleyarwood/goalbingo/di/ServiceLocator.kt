@@ -7,9 +7,12 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
 import com.kyleyarwood.goalbingo.data.BingoRepository
 import com.kyleyarwood.goalbingo.data.SettingsRepository
+import com.kyleyarwood.goalbingo.data.local.ALL_MIGRATIONS
 import com.kyleyarwood.goalbingo.data.local.BingoDatabase
 import com.kyleyarwood.goalbingo.data.local.DataStoreSettingsRepository
 import com.kyleyarwood.goalbingo.data.local.LocalBingoRepository
+import com.kyleyarwood.goalbingo.data.local.SchedulingBingoRepository
+import com.kyleyarwood.goalbingo.reminder.ReminderScheduler
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -26,10 +29,17 @@ class ServiceLocator(context: Context) {
         BingoDatabase::class.java,
         BingoDatabase.NAME,
     )
+        .addMigrations(*ALL_MIGRATIONS)
+        // Backstop only: if a future schema bump ships without a matching
+        // Migration object, prefer wiping over crashing. Remove for prod builds.
         .fallbackToDestructiveMigration()
         .build()
 
-    val repository: BingoRepository = LocalBingoRepository(database.squareDao())
+    private val localRepository: BingoRepository = LocalBingoRepository(database.squareDao())
+
+    val reminderScheduler: ReminderScheduler = ReminderScheduler(appContext, localRepository)
+
+    val repository: BingoRepository = SchedulingBingoRepository(localRepository, reminderScheduler)
 
     val settings: SettingsRepository = DataStoreSettingsRepository(appContext.settingsDataStore)
 }

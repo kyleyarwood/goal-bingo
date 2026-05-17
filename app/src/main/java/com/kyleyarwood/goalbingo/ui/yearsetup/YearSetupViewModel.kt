@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.kyleyarwood.goalbingo.data.BingoCard
 import com.kyleyarwood.goalbingo.data.BingoRepository
 import com.kyleyarwood.goalbingo.data.Goal
+import com.kyleyarwood.goalbingo.data.ReminderConfig
 import com.kyleyarwood.goalbingo.data.Square
+import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,15 +27,27 @@ data class GoalRow(
     val target: String = "",
     val originalProgress: Int? = null,
     val originalDone: Boolean? = null,
+    val originalReminder: ReminderConfig? = null,
+    val originalLastIncrementedDate: LocalDate? = null,
 ) {
     fun toGoal(): Goal? {
         val trimmed = title.trim()
         if (trimmed.isEmpty()) return null
         val targetInt = target.toIntOrNull()
         return if (targetInt != null && targetInt > 0) {
-            Goal.Counter(title = trimmed, target = targetInt, progress = originalProgress ?: 0)
+            Goal.Counter(
+                title = trimmed,
+                target = targetInt,
+                progress = originalProgress ?: 0,
+                reminder = originalReminder,
+                lastIncrementedDate = originalLastIncrementedDate,
+            )
         } else {
-            Goal.Checkbox(title = trimmed, done = originalDone ?: false)
+            Goal.Checkbox(
+                title = trimmed,
+                done = originalDone ?: false,
+                reminder = originalReminder,
+            )
         }
     }
 }
@@ -55,11 +69,17 @@ class YearSetupViewModel(
             _rows.value = card.squares.map { sq ->
                 when (val g = sq.goal) {
                     null -> GoalRow()
-                    is Goal.Checkbox -> GoalRow(title = g.title, originalDone = g.done)
+                    is Goal.Checkbox -> GoalRow(
+                        title = g.title,
+                        originalDone = g.done,
+                        originalReminder = g.reminder,
+                    )
                     is Goal.Counter -> GoalRow(
                         title = g.title,
                         target = g.target.toString(),
                         originalProgress = g.progress,
+                        originalReminder = g.reminder,
+                        originalLastIncrementedDate = g.lastIncrementedDate,
                     )
                 }
             }
