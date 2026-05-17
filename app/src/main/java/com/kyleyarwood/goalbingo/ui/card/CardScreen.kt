@@ -14,17 +14,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Brightness6
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +46,16 @@ import com.kyleyarwood.goalbingo.R
 import com.kyleyarwood.goalbingo.data.BingoCard
 import com.kyleyarwood.goalbingo.data.Goal
 import com.kyleyarwood.goalbingo.data.Square
+import com.kyleyarwood.goalbingo.data.ThemeMode
+import com.kyleyarwood.goalbingo.ui.theme.BingoOrangeDark
+import com.kyleyarwood.goalbingo.ui.theme.BingoOrangeLight
+import com.kyleyarwood.goalbingo.ui.theme.CompletedGreenDark
+import com.kyleyarwood.goalbingo.ui.theme.CompletedGreenLight
+import com.kyleyarwood.goalbingo.ui.theme.LocalIsDarkTheme
+import com.kyleyarwood.goalbingo.ui.theme.OnBingoOrangeDark
+import com.kyleyarwood.goalbingo.ui.theme.OnBingoOrangeLight
+import com.kyleyarwood.goalbingo.ui.theme.OnCompletedGreenDark
+import com.kyleyarwood.goalbingo.ui.theme.OnCompletedGreenLight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +63,8 @@ fun CardScreen(
     factory: CardViewModel.Factory,
     onSquareClick: (position: Int) -> Unit,
     onEditCardClick: () -> Unit,
+    themeMode: ThemeMode,
+    onSelectThemeMode: (ThemeMode) -> Unit,
 ) {
     val viewModel: CardViewModel = viewModel(factory = factory)
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -55,6 +74,7 @@ fun CardScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.card_title, viewModel.year)) },
                 actions = {
+                    ThemeMenu(current = themeMode, onSelect = onSelectThemeMode)
                     IconButton(onClick = onEditCardClick) {
                         Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_card))
                     }
@@ -85,6 +105,34 @@ fun CardScreen(
             )
         }
     }
+}
+
+@Composable
+private fun ThemeMenu(current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    IconButton(onClick = { open = true }) {
+        Icon(Icons.Default.Brightness6, contentDescription = stringResource(R.string.theme))
+    }
+    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        ThemeMode.entries.forEach { mode ->
+            DropdownMenuItem(
+                text = { Text(stringResource(mode.labelRes())) },
+                onClick = {
+                    onSelect(mode)
+                    open = false
+                },
+                leadingIcon = {
+                    RadioButton(selected = mode == current, onClick = null)
+                },
+            )
+        }
+    }
+}
+
+private fun ThemeMode.labelRes(): Int = when (this) {
+    ThemeMode.SYSTEM -> R.string.theme_system
+    ThemeMode.LIGHT -> R.string.theme_light
+    ThemeMode.DARK -> R.string.theme_dark
 }
 
 @Composable
@@ -126,14 +174,15 @@ private fun SquareCell(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val dark = LocalIsDarkTheme.current
     val background = when {
-        isHighlighted -> scheme.tertiaryContainer
-        square.isComplete -> scheme.secondaryContainer
+        isHighlighted -> if (dark) BingoOrangeDark else BingoOrangeLight
+        square.isComplete -> if (dark) CompletedGreenDark else CompletedGreenLight
         else -> scheme.surfaceVariant
     }
     val contentColor = when {
-        isHighlighted -> scheme.onTertiaryContainer
-        square.isComplete -> scheme.onSecondaryContainer
+        isHighlighted -> if (dark) OnBingoOrangeDark else OnBingoOrangeLight
+        square.isComplete -> if (dark) OnCompletedGreenDark else OnCompletedGreenLight
         else -> scheme.onSurfaceVariant
     }
 

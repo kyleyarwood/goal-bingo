@@ -20,16 +20,16 @@ class SquareDetailViewModel(
     val position: Int,
 ) : ViewModel() {
 
-    val square: StateFlow<Square> = repository.observeCard(year)
+    val square: StateFlow<Square?> = repository.observeCard(year)
         .map { it.square(position) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000L),
-            initialValue = Square(position = position, goal = null),
+            initialValue = null,
         )
 
     fun increment(delta: Int) {
-        val current = square.value
+        val current = square.value ?: return
         val goal = current.goal ?: return
         viewModelScope.launch {
             repository.upsertSquare(year, current.copy(goal = goal.withProgressDelta(delta)))
@@ -37,7 +37,7 @@ class SquareDetailViewModel(
     }
 
     fun toggleDone() {
-        val current = square.value
+        val current = square.value ?: return
         val goal = current.goal ?: return
         viewModelScope.launch {
             repository.upsertSquare(year, current.copy(goal = goal.toggled()))
@@ -45,14 +45,16 @@ class SquareDetailViewModel(
     }
 
     fun save(goal: Goal) {
+        val current = square.value ?: return
         viewModelScope.launch {
-            repository.upsertSquare(year, square.value.copy(goal = goal))
+            repository.upsertSquare(year, current.copy(goal = goal))
         }
     }
 
     fun clear() {
+        val current = square.value ?: return
         viewModelScope.launch {
-            repository.upsertSquare(year, square.value.copy(goal = null))
+            repository.upsertSquare(year, current.copy(goal = null))
         }
     }
 

@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.kyleyarwood.goalbingo.data.BingoRepository
+import com.kyleyarwood.goalbingo.data.ThemeMode
 import com.kyleyarwood.goalbingo.ui.card.CardScreen
 import com.kyleyarwood.goalbingo.ui.card.CardViewModel
 import com.kyleyarwood.goalbingo.ui.detail.SquareDetailScreen
@@ -22,7 +23,12 @@ private object Route {
 }
 
 @Composable
-fun BingoNavHost(repository: BingoRepository, year: Int) {
+fun BingoNavHost(
+    repository: BingoRepository,
+    year: Int,
+    themeMode: ThemeMode,
+    onSelectThemeMode: (ThemeMode) -> Unit,
+) {
     val navController = rememberNavController()
 
     NavHost(navController = navController, startDestination = Route.CARD) {
@@ -31,6 +37,8 @@ fun BingoNavHost(repository: BingoRepository, year: Int) {
                 factory = CardViewModel.Factory(repository, year),
                 onSquareClick = { navController.navigate(Route.square(it)) },
                 onEditCardClick = { navController.navigate(Route.SETUP) },
+                themeMode = themeMode,
+                onSelectThemeMode = onSelectThemeMode,
             )
         }
         composable(Route.SETUP) {

@@ -1,6 +1,7 @@
 package com.kyleyarwood.goalbingo.ui.detail
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,8 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -22,13 +23,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -37,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kyleyarwood.goalbingo.R
 import com.kyleyarwood.goalbingo.data.Goal
+import com.kyleyarwood.goalbingo.data.Square
 
 private enum class EditableType { Checkbox, Counter }
 
@@ -48,13 +51,6 @@ fun SquareDetailScreen(
 ) {
     val viewModel: SquareDetailViewModel = viewModel(factory = factory)
     val square by viewModel.square.collectAsStateWithLifecycle()
-    val goal = square.goal
-
-    var editing by remember { mutableStateOf(goal == null) }
-
-    LaunchedEffect(goal) {
-        if (goal == null) editing = true
-    }
 
     Scaffold(
         topBar = {
@@ -65,40 +61,66 @@ fun SquareDetailScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
                     }
                 },
-                actions = {
-                    if (goal != null && !editing) {
-                        IconButton(onClick = { viewModel.clear() }) {
-                            Icon(Icons.Default.Delete, contentDescription = null)
-                        }
-                    }
-                },
             )
         },
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            if (editing || goal == null) {
-                GoalEditor(
-                    initial = goal,
-                    onSave = {
-                        viewModel.save(it)
-                        editing = false
-                    },
-                    onCancel = if (goal != null) { { editing = false } } else null,
-                )
-            } else {
-                GoalReadView(
-                    goal = goal,
-                    onIncrement = viewModel::increment,
-                    onToggle = viewModel::toggleDone,
-                    onEdit = { editing = true },
-                )
-            }
+        val loaded = square
+        if (loaded == null) {
+            Box(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) { CircularProgressIndicator() }
+        } else {
+            SquareDetailContent(
+                square = loaded,
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+                    .padding(16.dp),
+                onIncrement = viewModel::increment,
+                onToggle = viewModel::toggleDone,
+                onSave = viewModel::save,
+                onDelete = viewModel::clear,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SquareDetailContent(
+    square: Square,
+    modifier: Modifier,
+    onIncrement: (Int) -> Unit,
+    onToggle: () -> Unit,
+    onSave: (Goal) -> Unit,
+    onDelete: () -> Unit,
+) {
+    val goal = square.goal
+    var editing by remember(square.position) { mutableStateOf(goal == null) }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        if (editing || goal == null) {
+            GoalEditor(
+                initial = goal,
+                onSave = {
+                    onSave(it)
+                    editing = false
+                },
+                onCancel = if (goal != null) { { editing = false } } else null,
+            )
+        } else {
+            GoalReadView(
+                goal = goal,
+                onIncrement = onIncrement,
+                onToggle = onToggle,
+                onEdit = { editing = true },
+                onDelete = onDelete,
+            )
         }
     }
 }
@@ -109,6 +131,7 @@ private fun GoalReadView(
     onIncrement: (Int) -> Unit,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     Text(goal.title, style = MaterialTheme.typography.titleLarge)
     if (goal.description.isNotBlank()) {
@@ -138,7 +161,11 @@ private fun GoalReadView(
         }
     }
 
-    OutlinedButton(onClick = onEdit) { Text("Edit goal") }
+    Spacer(Modifier.height(16.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(onClick = onEdit) { Text("Edit goal") }
+        TextButton(onClick = onDelete) { Text("Delete") }
+    }
 }
 
 @Composable
