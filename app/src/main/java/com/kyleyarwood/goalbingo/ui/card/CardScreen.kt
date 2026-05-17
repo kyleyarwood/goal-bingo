@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -214,6 +215,7 @@ private fun SquareCell(
                     textAlign = TextAlign.Center,
                     fontWeight = if (square.isComplete) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 if (goal is Goal.Counter) {
                     Text(
